@@ -11,93 +11,87 @@
 
 import vtk
 import os.path
-SKIN_COLOR = [0.77, 0.61, 0.60]
 
-SPHERE_CENTER = [70, 40, 100]
-SPHERE_RADIUS = 45
+# =========================== CONSTANTES ============================= #
 
-SCANER_FILE_NAME = "data/vw_knee.slc"
-BONE_SURFACE_SAVE_FILE_NAME = "bone_save.vtk"
+# Fichiers
+SCANNER_FILE = "data/vw_knee.slc"
+BONE_FILE = "bones.vtk"
 
-LIGHT_RED = [1.0, 0.8, 0.8]
-LIGHT_GREEN = [0.8, 1.0, 0.8]
-LIGHT_BLUE = [0.8, 0.8, 1.0]
-LIGHT_GREY = [0.8, 0.8, 0.8]
-SPHERE_YELLOW = [1, 0.82, 0.37]
-BONE_COLOR = [0.90, 0.90, 0.90]
+# Couleurs
+RED = [1.0, 0.8, 0.8]
+GREEN = [0.8, 1.0, 0.8]
+BLUE = [0.8, 0.8, 1.0]
+GREY = [0.8, 0.8, 0.8]
+YELLOW = [1, 0.83, 0.39]
+BONE = [0.90, 0.90, 0.90]
+SKIN = [0.76, 0.60, 0.61]
 BLACK = [0.0, 0.0, 0.0]
 
+# Paramètres de la fenêtre
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 800
 WINDOW_NAME = "Knee Scanner"
 
-STRIP_COUNT = 19
-STRIP_RADIUS = 2
+# Paramètres de la sphère du genou
+SPHERE_CENTER = [70, 40, 100]
+SPHERE_RADIUS = 50
 
-DIST_MIN_SKIN = 2
+# Intervalle des viewports
+XMIN = [0.0, 0.5, 0.0, 0.5]
+XMAX = [0.5, 1.0, 0.5, 1.0]
+YMIN = [0.5, 0.5, 0.0, 0.0]
+YMAX = [1.0, 1.0, 0.5, 0.5]
 
-# Lecture du fichier SLC
-slcReader = vtk.vtkSLCReader()
-slcReader.SetFileName(SCANER_FILE_NAME)
+# Couleur de fond de gauche à droite, haut en bas
+BKG = [RED, GREEN, BLUE, GREY]
 
-# Acteur de la boîte englobante
-boxOutlineFilter = vtk.vtkOutlineFilter()
-boxOutlineFilter.SetInputConnection(slcReader.GetOutputPort())
-
-boxPolyDataMapper = vtk.vtkPolyDataMapper()
-boxPolyDataMapper.SetInputConnection(boxOutlineFilter.GetOutputPort())
-
-boxActor = vtk.vtkActor()
-boxActor.SetMapper(boxPolyDataMapper)
-boxActor.GetProperty().SetColor(BLACK)
-
-# Topologie de la peau
-skinContourFilter = vtk.vtkContourFilter()
-skinContourFilter.SetInputConnection(slcReader.GetOutputPort())
-# Valeur trouvée par tatônnement
-skinContourFilter.SetValue(0, 50)
-
-# Mapper de la peau, clippée par une sphère
-sphere = vtk.vtkSphere()
-sphere.SetRadius(SPHERE_RADIUS)
-sphere.SetCenter(SPHERE_CENTER)
-
-clippedSkinPolyData = vtk.vtkClipPolyData()
-clippedSkinPolyData.SetClipFunction(sphere)
-clippedSkinPolyData.SetInputConnection(skinContourFilter.GetOutputPort())
-
-clippedSkinPolyDataMapper = vtk.vtkPolyDataMapper()
-clippedSkinPolyDataMapper.SetInputConnection(clippedSkinPolyData.GetOutputPort())
-clippedSkinPolyDataMapper.ScalarVisibilityOff()
-
-# Acteur de l'os de couleur grise
-boneContourFilter = vtk.vtkContourFilter()
-boneContourFilter.SetInputConnection(slcReader.GetOutputPort())
-
-bonePolyDataMapper = vtk.vtkPolyDataMapper()
-bonePolyDataMapper.SetInputConnection(boneContourFilter.GetOutputPort())
-bonePolyDataMapper.ScalarVisibilityOff()
+# Constantes diverses
+STRIP_NUM = 19
+STRIP_SIZE = 2
+SKIN_FILTER = 50
+BONE_FILTER = 72
 
 
+# =========================== METHODS ============================= #
 
-boneActor = vtk.vtkActor()
-boneActor.SetMapper(bonePolyDataMapper)
-boneActor.GetProperty().SetColor(BONE_COLOR)
 
-def upper_left_viewport_actors(): # Genou avec os en gris et peau en tubes
+# Retourne un filter de type contour pour une valeur donnée
+def get_contour_filter(reader, filter_value):
+    contourFilter = vtk.vtkContourFilter()
+    contourFilter.SetInputConnection(reader.GetOutputPort())
+    contourFilter.SetValue(0, filter_value)
+    return contourFilter
+
+# Création de la boîte englobante
+def create_box_actor(reader):
+    boxFilter = vtk.vtkOutlineFilter()
+    boxFilter.SetInputConnection(reader.GetOutputPort())
+
+    boxMapper = vtk.vtkPolyDataMapper()
+    boxMapper.SetInputConnection(boxFilter.GetOutputPort())
+
+    boxActor = vtk.vtkActor()
+    boxActor.SetMapper(boxMapper)
+    boxActor.GetProperty().SetColor(BLACK)
+
+    return boxActor
+
+# Genou avec os en gris et peau en tubes
+def top_left_actors(): 
     # Plan à découper
     plane = vtk.vtkPlane()
 
     # Mapper de la peau
-    skinPolyDataMapper = vtk.vtkPolyDataMapper()
-    skinPolyDataMapper.SetInputConnection(skinContourFilter.GetOutputPort())
-    skinPolyDataMapper.ScalarVisibilityOff()
+    skinMapper = vtk.vtkPolyDataMapper()
+    skinMapper.SetInputConnection(skinContourFilter.GetOutputPort())
+    skinMapper.ScalarVisibilityOff()
 
-    # Cutter pour clipper la sphère dans la peau
+    # Cutter pour clipper le plan dans la peau
     cutter = vtk.vtkCutter()
-    cutter.SetInputData(skinPolyDataMapper.GetInput())
+    cutter.SetInputData(skinMapper.GetInput())
     cutter.SetCutFunction(plane)
-    cutter.GenerateValues(STRIP_COUNT, boxActor.GetBounds()[-2], boxActor.GetBounds()[-1])
+    cutter.GenerateValues(STRIP_NUM, boxActor.GetBounds()[-2], boxActor.GetBounds()[-1])
 
     # Création des segments du triangle
     stripper = vtk.vtkStripper()
@@ -106,7 +100,7 @@ def upper_left_viewport_actors(): # Genou avec os en gris et peau en tubes
 
     # Création des tubes autour des lignes du stripper
     tubeFilter = vtk.vtkTubeFilter()
-    tubeFilter.SetRadius(STRIP_RADIUS)
+    tubeFilter.SetRadius(STRIP_SIZE)
     tubeFilter.SetInputConnection(stripper.GetOutputPort())
 
     # Mapper des tubes
@@ -117,26 +111,26 @@ def upper_left_viewport_actors(): # Genou avec os en gris et peau en tubes
     # Acteurs des tubes
     tubesActor = vtk.vtkActor()
     tubesActor.SetMapper(tubesPolyDataMapper)
-    tubesActor.GetProperty().SetColor(SKIN_COLOR)
+    tubesActor.GetProperty().SetColor(SKIN)
 
-    return [boxActor, boneActor, tubesActor]
+    return [tubesActor]
 
-def top_right_viewport_actors(): # Genou avec os en gris et peau clippé par une sphère transparente
+def top_right_actors(): # Genou avec os en gris et peau clippé par une sphère transparente
     # Acteur de la peau transparente devant le genou et opaque derrière
     skinActor = vtk.vtkActor()
-    skinActor.SetMapper(clippedSkinPolyDataMapper)
-    skinActor.GetProperty().SetColor(SKIN_COLOR)
+    skinActor.SetMapper(clippedSkinMapper)
+    skinActor.GetProperty().SetColor(SKIN)
     skinActor.GetProperty().SetOpacity(0.4)
     skinActor.SetBackfaceProperty(skinActor.MakeProperty())
-    skinActor.GetBackfaceProperty().SetColor(SKIN_COLOR)
+    skinActor.GetBackfaceProperty().SetColor(SKIN)
 
-    return [boxActor, boneActor, skinActor]
+    return [skinActor]
 
-def bottom_lef_viewport_actors(): # Genou avec peau opaque et clippé par une sphère jaune
+def bottom_left_actors(): # Genou avec peau opaque et clippé par une sphère jaune
     # Acteur pour la peau
     skinActor = vtk.vtkActor()
-    skinActor.SetMapper(clippedSkinPolyDataMapper)
-    skinActor.GetProperty().SetColor(SKIN_COLOR)
+    skinActor.SetMapper(clippedSkinMapper)
+    skinActor.GetProperty().SetColor(SKIN)
 
     # https://python.hotexamples.com/fr/examples/vtk/-/vtkSampleFunction/python-vtksamplefunction-function-examples.html
     # Conversion de fonction implicite à polydata et utilisation d'une fonction explicite en choisissant les contours
@@ -164,30 +158,23 @@ def bottom_lef_viewport_actors(): # Genou avec peau opaque et clippé par une sp
     sphereActor = vtk.vtkActor()
     sphereActor.SetMapper(spherePolyDataMapper)
     sphereActor.GetProperty().SetOpacity(0.3)
-    sphereActor.GetProperty().SetColor(SPHERE_YELLOW)
+    sphereActor.GetProperty().SetColor(YELLOW)
 
-    return [boxActor, boneActor, skinActor, sphereActor]
+    return [skinActor, sphereActor]
 
-def bottom_right_viewport_actors():
+def bottom_right_actors():
+    # Lit le fichier contenant les distances à la peau si il existe, sinon le crée
+    inputConnection = None
+    if os.path.exists(BONE_FILE):
+        # Lecture des données
+        boneReader = vtk.vtkPolyDataReader()
+        boneReader.SetFileName(BONE_FILE)
+        boneReader.ReadAllScalarsOn()
+        boneReader.Update()
 
-    bonePolyDataMapper = vtk.vtkPolyDataMapper()
-
-
-    if os.path.exists(BONE_SURFACE_SAVE_FILE_NAME):
-
-        # Lecture des polydata de l'os
-        bonePolyDataReader = vtk.vtkPolyDataReader()
-        bonePolyDataReader.SetFileName(BONE_SURFACE_SAVE_FILE_NAME)
-        bonePolyDataReader.ReadAllScalarsOn()
-        bonePolyDataReader.Update()
-
-        # Création du mapper de l'os
-        bonePolyDataMapper.SetInputConnection(bonePolyDataReader.GetOutputPort())
-        bonePolyDataMapper.SetScalarRange(bonePolyDataReader.GetOutput().GetScalarRange())
-
+        inputConnection = boneReader
     else:
-
-        # Calcul the la plus courte distance de chaque segment de l'os à la peau
+        # Calcule la distance entre la peau et l'os
         # https://kitware.github.io/vtk-examples/site/Cxx/PolyData/DistancePolyDataFilter/
         distancePolyDataFilter = vtk.vtkDistancePolyDataFilter()
         distancePolyDataFilter.SignedDistanceOff()
@@ -195,41 +182,68 @@ def bottom_right_viewport_actors():
         distancePolyDataFilter.SetInputConnection(1, skinContourFilter.GetOutputPort())
         distancePolyDataFilter.Update()
 
-        # Sauvegarde du fichier au format vtk pour ne pas avoir à recalculer toutes les distances
-        # Le calcul ci-dessus prend quelques minutes
+        # Sauve les données dans un fichier pour ne pas avoir à les recalculer
         bonePolyDataWriter = vtk.vtkPolyDataWriter()
-        bonePolyDataWriter.SetFileName(BONE_SURFACE_SAVE_FILE_NAME)
+        bonePolyDataWriter.SetFileName(BONE_FILE)
         bonePolyDataWriter.SetFileTypeToBinary()
         bonePolyDataWriter.SetInputConnection(distancePolyDataFilter.GetOutputPort())
         bonePolyDataWriter.Write()
 
-        # Création du mapper de l'os
-        bonePolyDataMapper.SetInputConnection(distancePolyDataFilter.GetOutputPort())
-        bonePolyDataMapper.SetScalarRange(distancePolyDataFilter.GetOutput().GetScalarRange())
+        inputConnection = distancePolyDataFilter
 
-    # Making bone actor
-    boneActor = vtk.vtkActor()
-    boneActor.SetMapper(bonePolyDataMapper)
+    # Mapper de la distance
+    distanceMapper = vtk.vtkPolyDataMapper()
+    distanceMapper.SetInputConnection(inputConnection.GetOutputPort())
+    distanceMapper.SetScalarRange(inputConnection.GetOutput().GetScalarRange())
 
-    return [boxActor, boneActor]
+    # Acteur de l'os coloré
+    coloredBoneActor = vtk.vtkActor()
+    coloredBoneActor.SetMapper(distanceMapper)
 
-# Création de la grille 2x2 de viewports selon l'exemple
-# https://kitware.github.io/vtk-examples/site/Cxx/Visualization/MultipleViewports/
+    return [coloredBoneActor]
 
-# Intervalle des viewports
-xmins = [0.0, 0.5, 0.0, 0.5]
-xmaxs = [0.5, 1.0, 0.5, 1.0]
-ymins = [0.5, 0.5, 0.0, 0.0]
-ymaxs = [1.0, 1.0, 0.5, 0.5]
+# ======================== MAIN ============================ #
 
-# Viewports de gauche à droite, haut en bas
-renBkg = [LIGHT_RED, LIGHT_GREEN, LIGHT_BLUE, LIGHT_GREY]
+# Lecture du fichier SLC
+reader = vtk.vtkSLCReader()
+reader.SetFileName(SCANNER_FILE)
+reader.Update()
 
-# Génération des actors pour chaque viewport
-renActors = [upper_left_viewport_actors(),
-             top_right_viewport_actors(),
-             bottom_lef_viewport_actors(),
-             bottom_right_viewport_actors()]
+
+# Topologie de la peau
+skinContourFilter = get_contour_filter(reader, SKIN_FILTER)
+
+
+# Sphere pour le clipping de la peau
+sphere = vtk.vtkSphere()
+sphere.SetRadius(SPHERE_RADIUS)
+sphere.SetCenter(SPHERE_CENTER)
+
+# Mapper de la peau
+clippedSkinPolyData = vtk.vtkClipPolyData()
+clippedSkinPolyData.SetClipFunction(sphere)
+clippedSkinPolyData.SetInputConnection(skinContourFilter.GetOutputPort())
+
+clippedSkinMapper = vtk.vtkPolyDataMapper()
+clippedSkinMapper.SetInputConnection(clippedSkinPolyData.GetOutputPort())
+clippedSkinMapper.ScalarVisibilityOff()
+
+
+# Topologie de l'os
+boneContourFilter = get_contour_filter(reader, BONE_FILTER)
+
+# Mapper de l'os
+boneMapper = vtk.vtkPolyDataMapper()
+boneMapper.SetInputConnection(boneContourFilter.GetOutputPort())
+boneMapper.ScalarVisibilityOff()
+
+# Acteur de l'os gris
+boneActor = vtk.vtkActor()
+boneActor.SetMapper(boneMapper)
+boneActor.GetProperty().SetColor(BONE)
+
+# Acteur de la boîte englobante
+boxActor = create_box_actor(reader)
 
 # Génération de la fenêtre d'affichage
 window = vtk.vtkRenderWindow()
@@ -237,15 +251,23 @@ interactor = vtk.vtkRenderWindowInteractor()
 interactor.SetRenderWindow(window)
 interactor.SetInteractorStyle(vtk.vtkInteractorStyleTrackballCamera())
 
+# Création de la caméra
 camera = vtk.vtkCamera()
 
+# Génération des actors pour chaque viewport
+renActors = [top_left_actors(),
+             top_right_actors(),
+             bottom_left_actors(),
+             bottom_right_actors()]
+
+# Création de la grille 2x2 de viewports selon l'exemple
+# https://kitware.github.io/vtk-examples/site/Cxx/Visualization/MultipleViewports/
 # Création des viewports
 for i in range(4):
-
     renderer = vtk.vtkRenderer()
 
     window.AddRenderer(renderer)
-    renderer.SetViewport(xmins[i], ymins[i], xmaxs[i], ymaxs[i])
+    renderer.SetViewport(XMIN[i], YMIN[i], XMAX[i], YMAX[i])
 
     if i == 0: # Même caméra pour tous les viewports
         camera = renderer.GetActiveCamera()
@@ -254,10 +276,14 @@ for i in range(4):
     else:
         renderer.SetActiveCamera(camera)
 
+    # Ajout des actors
     for actor in renActors[i]:
         renderer.AddActor(actor)
+    renderer.AddActor(boxActor)
+    if i != 3: # Pas d'os gris pour le viewport du bas à droite
+        renderer.AddActor(boneActor)
 
-    renderer.SetBackground(renBkg[i])
+    renderer.SetBackground(BKG[i])
     renderer.ResetCamera()
 
 # Affichage
