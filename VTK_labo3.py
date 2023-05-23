@@ -53,7 +53,7 @@ SKIN_FILTER = 50
 BONE_FILTER = 72
 
 
-# =========================== METHODS ============================= #
+# =========================== METHODES ============================= #
 
 
 # Retourne un filter de type contour pour une valeur donnée
